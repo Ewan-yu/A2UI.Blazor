@@ -59,7 +59,27 @@ public abstract class A2UIComponentBase : ComponentBase
     /// </summary>
     protected Dictionary<string, object>? GetDictionaryProperty(string propertyName)
     {
-        return GetProperty<Dictionary<string, object>>(propertyName);
+        if (Component.Properties.TryGetValue(propertyName, out var value))
+        {
+            // Direct dictionary
+            if (value is Dictionary<string, object> dict)
+                return dict;
+
+            // JsonElement needs special handling
+            if (value is System.Text.Json.JsonElement jsonElement && jsonElement.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                try
+                {
+                    return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(jsonElement.GetRawText());
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[A2UIComponentBase] Failed to deserialize JsonElement to Dictionary for property '{propertyName}': {ex.Message}");
+                    return null;
+                }
+            }
+        }
+        return null;
     }
 
     /// <summary>

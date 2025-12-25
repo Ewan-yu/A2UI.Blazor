@@ -22,6 +22,8 @@
         var childrenData = GetDictionaryProperty("children");
         if (childrenData != null && childrenData.TryGetValue("explicitList", out var explicitList))
         {
+            Console.WriteLine($"[A2UIRow] explicitList type: {explicitList?.GetType().FullName}, value: {explicitList}");
+            
             if (explicitList is List<string> stringList)
             {
                 ChildrenIds = stringList.ToList();
@@ -30,6 +32,33 @@
             {
                 ChildrenIds = objectList.Select(x => x?.ToString()).Where(x => !string.IsNullOrEmpty(x)).ToList()!;
             }
+            else if (explicitList is string[] stringArray)
+            {
+                ChildrenIds = stringArray.ToList();
+            }
+            else if (explicitList is object[] objectArray)
+            {
+                ChildrenIds = objectArray.Select(x => x?.ToString()).Where(x => !string.IsNullOrEmpty(x)).ToList()!;
+            }
+            else if (explicitList is System.Text.Json.JsonElement jsonElement)
+            {
+                try
+                {
+                    ChildrenIds = System.Text.Json.JsonSerializer.Deserialize<List<string>>(jsonElement.GetRawText()) ?? new List<string>();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[A2UIRow] Failed to deserialize explicitList: {ex.Message}");
+                    ChildrenIds = new List<string>();
+                }
+            }
+            else
+            {
+                Console.WriteLine($"[A2UIRow] Unexpected explicitList type: {explicitList?.GetType().FullName}");
+                ChildrenIds = new List<string>();
+            }
+            
+            Console.WriteLine($"[A2UIRow] ChildrenIds count: {ChildrenIds?.Count ?? 0}, IDs: {string.Join(", ", ChildrenIds ?? new List<string>())}");
         }
 
         Distribution = GetStringProperty("distribution");

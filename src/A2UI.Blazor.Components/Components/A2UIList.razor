@@ -30,6 +30,26 @@
             {
                 ChildrenIds = objectList.Select(x => x?.ToString()).Where(x => !string.IsNullOrEmpty(x)).ToList()!;
             }
+            else if (explicitList is string[] stringArray)
+            {
+                ChildrenIds = stringArray.ToList();
+            }
+            else if (explicitList is object[] objectArray)
+            {
+                ChildrenIds = objectArray.Select(x => x?.ToString()).Where(x => !string.IsNullOrEmpty(x)).ToList()!;
+            }
+            else if (explicitList is System.Text.Json.JsonElement jsonElement)
+            {
+                try
+                {
+                    ChildrenIds = System.Text.Json.JsonSerializer.Deserialize<List<string>>(jsonElement.GetRawText()) ?? new List<string>();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[A2UIList] Failed to deserialize explicitList: {ex.Message}");
+                    ChildrenIds = new List<string>();
+                }
+            }
         }
 
         Direction = GetStringProperty("direction");
