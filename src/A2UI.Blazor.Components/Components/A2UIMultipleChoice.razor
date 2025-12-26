@@ -18,16 +18,16 @@
                     @if (IsMultipleSelection)
                     {
                         <input type="checkbox" 
-                               checked="@IsSelected(option.Value)" 
-                               @onchange="@(e => HandleCheckboxChange(option.Value, e))"
+                               checked="@IsSelected(option.Id)" 
+                               @onchange="@(e => HandleCheckboxChange(option.Id, e))"
                                style="margin-right: 8px;" />
                     }
                     else
                     {
                         <input type="radio" 
                                name="@Component.Id" 
-                               checked="@IsSelected(option.Value)" 
-                               @onchange="@(e => HandleRadioChange(option.Value))"
+                               checked="@IsSelected(option.Id)" 
+                               @onchange="@(e => HandleRadioChange(option.Id))"
                                style="margin-right: 8px;" />
                     }
                     <span>@option.Label</span>
@@ -40,69 +40,60 @@
 @code {
     private string? ResolvedLabel;
     private List<ChoiceOption> Options = new();
-    private List<string> SelectedValues = new();
+    private Dictionary<string, bool> SelectedStates = new();
     private bool IsMultipleSelection;
 
     private class ChoiceOption
     {
+        public string Id { get; set; } = "";
         public string Label { get; set; } = "";
-        public string Value { get; set; } = "";
+        public string? DataPath { get; set; }
     }
 
     protected override void OnParametersSet()
     {
         base.OnParametersSet();
 
-        // Get the label bound value
-        var labelValue = GetDictionaryProperty("label");
-        if (labelValue != null)
+        // Get the question bound value
+        var questionValue = GetDictionaryProperty("question");
+        if (questionValue != null)
         {
-            ResolvedLabel = BindingResolver.ResolveString(labelValue, SurfaceId, Component.DataContextPath);
+            ResolvedLabel = BindingResolver.ResolveString(questionValue, SurfaceId, Component.DataContextPath);
         }
 
         // Get usage hint
         var usageHint = GetStringProperty("usageHint");
-        IsMultipleSelection = usageHint?.ToLower() == "multipleselection";
+        IsMultipleSelection = usageHint?.ToLower() != "singleselection";
 
         // Get options
         if (Component.Properties.TryGetValue("options", out var optionsValue))
         {
             Options = ParseOptions(optionsValue);
         }
-
-        // Get selected values
-        var valueData = GetDictionaryProperty("value");
-        if (valueData != null)
-        {
-            var resolvedValue = BindingResolver.ResolveValue(valueData, SurfaceId, Component.DataContextPath);
-            if (resolvedValue is List<object> objectList)
-            {
-                SelectedValues = objectList.Select(x => x?.ToString() ?? "").ToList();
-            }
-            else if (resolvedValue is string[] stringArray)
-            {
-                SelectedValues = stringArray.ToList();
-            }
-            else if (resolvedValue is List<string> stringList)
-            {
-                SelectedValues = stringList;
-            }
-        }
     }
 
     private List<ChoiceOption> ParseOptions(object optionsValue)
     {
         var result = new List<ChoiceOption>();
+        SelectedStates.Clear();
 
         try
         {
-            if (optionsValue is List<object> objectList)
+            if (optionsValue is Dictionary<string, object> optionsDict &&
+                optionsDict.TryGetValue("explicitList", out var listObj) &&
+                listObj is List<object> objectList)
             {
                 foreach (var item in objectList)
                 {
                     if (item is Dictionary<string, object> dict)
                     {
                         var option = new ChoiceOption();
+                        
+                        if (dict.TryGetValue("id", out var idObj))
+                        {
+                            option.Id = idObj?.ToString() ?? "";
+                        }
+                        
                         if (dict.TryGetValue("label", out var labelObj))
                         {
                             var labelData = labelObj as Dictionary<string, object>;
@@ -110,10 +101,20 @@
                                 BindingResolver.ResolveString(labelData, SurfaceId, Component.DataContextPath) ?? "" :
                                 labelObj?.ToString() ?? "";
                         }
-                        if (dict.TryGetValue("value", out var valueObj))
+                        
+                        if (dict.TryGetValue("selected", out var selectedObj))
                         {
-                            option.Value = valueObj?.ToString() ?? "";
+                            var selectedData = selectedObj as Dictionary<string, object>;
+                            if (selectedData != null && selectedData.TryGetValue("path", out var pathObj))
+                            {
+                                option.DataPath = pathObj?.ToString();
+                                
+                                // Get current selected state
+                                var resolvedValue = BindingResolver.ResolveValue(selectedData, SurfaceId, Component.DataContextPath);
+                                SelectedStates[option.Id] = resolvedValue is bool boolValue && boolValue;
+                            }
                         }
+                        
                         result.Add(option);
                     }
                 }
@@ -127,48 +128,70 @@
         return result;
     }
 
-    private bool IsSelected(string value)
+    private bool IsSelected(string optionId)
     {
-        return SelectedValues.Contains(value);
+        return SelectedStates.TryGetValue(optionId, out var selected) && selected;
     }
 
-    private void HandleCheckboxChange(string value, ChangeEventArgs e)
+    private void HandleCheckboxChange(string optionId, ChangeEventArgs e)
     {
         if (e.Value is bool isChecked)
         {
-            if (isChecked)
+            SelectedStates[optionId] = isChecked;
+            
+            var option = Options.FirstOrDefault(o => o.Id == optionId);
+            if (option?.DataPath != null)
             {
-                if (!SelectedValues.Contains(value))
-                    SelectedValues.Add(value);
+                var dataUpdate = EventDispatcher.CreateDataUpdate(
+                    SurfaceId,
+                    Component.Id,
+                    option.DataPath,
+                    isChecked
+                );
+                EventDispatcher.DispatchDataUpdate(dataUpdate);
             }
-            else
-            {
-                SelectedValues.Remove(value);
-            }
-
-            DispatchValueUpdate();
+            
+            StateHasChanged();
         }
     }
 
-    private void HandleRadioChange(string value)
+    private void HandleRadioChange(string optionId)
     {
-        SelectedValues = new List<string> { value };
-        DispatchValueUpdate();
-    }
-
-    private void DispatchValueUpdate()
-    {
-        var valueData = GetDictionaryProperty("value");
-        if (valueData != null && valueData.TryGetValue("path", out var pathObj) && pathObj is string path)
+        // Uncheck all others
+        foreach (var key in SelectedStates.Keys.ToList())
+        {
+            if (key != optionId)
+            {
+                SelectedStates[key] = false;
+                var opt = Options.FirstOrDefault(o => o.Id == key);
+                if (opt?.DataPath != null)
+                {
+                    var dataUpdate = EventDispatcher.CreateDataUpdate(
+                        SurfaceId,
+                        Component.Id,
+                        opt.DataPath,
+                        false
+                    );
+                    EventDispatcher.DispatchDataUpdate(dataUpdate);
+                }
+            }
+        }
+        
+        // Check selected
+        SelectedStates[optionId] = true;
+        var option = Options.FirstOrDefault(o => o.Id == optionId);
+        if (option?.DataPath != null)
         {
             var dataUpdate = EventDispatcher.CreateDataUpdate(
                 SurfaceId,
                 Component.Id,
-                path,
-                SelectedValues
+                option.DataPath,
+                true
             );
             EventDispatcher.DispatchDataUpdate(dataUpdate);
         }
+        
+        StateHasChanged();
     }
 
     protected override string GetCssClass()

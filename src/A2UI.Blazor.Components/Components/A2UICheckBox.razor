@@ -29,11 +29,11 @@
             ResolvedLabel = BindingResolver.ResolveString(labelValue, SurfaceId, Component.DataContextPath);
         }
 
-        // Get the value bound value
-        var valueData = GetDictionaryProperty("value");
-        if (valueData != null)
+        // Get the checked bound value (try both "checked" and "value" for compatibility)
+        var checkedData = GetDictionaryProperty("checked") ?? GetDictionaryProperty("value");
+        if (checkedData != null)
         {
-            var resolvedValue = BindingResolver.ResolveValue(valueData, SurfaceId, Component.DataContextPath);
+            var resolvedValue = BindingResolver.ResolveValue(checkedData, SurfaceId, Component.DataContextPath);
             IsChecked = resolvedValue is bool boolValue && boolValue;
         }
     }
@@ -44,9 +44,9 @@
         {
             IsChecked = newValue;
 
-            // Dispatch data update event
-            var valueData = GetDictionaryProperty("value");
-            if (valueData != null && valueData.TryGetValue("path", out var pathObj) && pathObj is string path)
+            // Dispatch data update event (try both "checked" and "value" for compatibility)
+            var checkedData = GetDictionaryProperty("checked") ?? GetDictionaryProperty("value");
+            if (checkedData != null && checkedData.TryGetValue("path", out var pathObj) && pathObj is string path)
             {
                 var dataUpdate = EventDispatcher.CreateDataUpdate(
                     SurfaceId,
