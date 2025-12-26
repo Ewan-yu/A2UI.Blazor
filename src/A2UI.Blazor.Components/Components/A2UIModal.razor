@@ -1,46 +1,144 @@
 @inherits A2UIComponentBase
+@using A2UI.Core.Processing
+@using A2UI.Core.Messages
+@inject DataBindingResolver BindingResolver
+@inject EventDispatcher EventDispatcher
+@implements IDisposable
 
-<div class="@GetCssClass()" style="@GetInlineStyle()">
-    @if (!string.IsNullOrEmpty(EntryPointChildId))
-    {
-        <div @onclick="OpenModal">
-            <A2UIRenderer SurfaceId="@SurfaceId" ComponentId="@EntryPointChildId" DataContextPath="@Component.DataContextPath" />
-        </div>
-    }
-
-    @if (IsOpen && !string.IsNullOrEmpty(ContentChildId))
-    {
-        <div class="modal-overlay" @onclick="CloseModal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;">
-            <div class="modal-content" @onclick:stopPropagation style="background: white; padding: 24px; border-radius: 8px; max-width: 600px; max-height: 80vh; overflow: auto; position: relative;">
-                <button @onclick="CloseModal" style="position: absolute; top: 12px; right: 12px; border: none; background: transparent; font-size: 24px; cursor: pointer; line-height: 1;">&times;</button>
+@if (IsOpen && !string.IsNullOrEmpty(ContentChildId))
+{
+   
+    Console.WriteLine($"[A2UIModal] Rendering opened modal - SurfaceId={SurfaceId}, ContentChildId={ContentChildId}, Title={ResolvedTitle}");
+    
+    <div class="modal-overlay" @onclick="CloseModal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;">
+        <div class="modal-content" @onclick:stopPropagation style="background: white; padding: 0; border-radius: 8px; max-width: 600px; max-height: 80vh; overflow: hidden; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+            <!-- Modal Header -->
+            @if (!string.IsNullOrEmpty(ResolvedTitle))
+            {
+                <div class="modal-header" style="padding: 20px 24px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
+                    <h3 style="margin: 0; font-size: 18px; font-weight: 600;">@ResolvedTitle</h3>
+                    <button @onclick="CloseModal" style="border: none; background: transparent; font-size: 24px; cursor: pointer; line-height: 1; color: #666; padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'">&times;</button>
+                </div>
+            }
+            else
+            {
+                <button @onclick="CloseModal" style="position: absolute; top: 12px; right: 12px; border: none; background: transparent; font-size: 24px; cursor: pointer; line-height: 1; color: #666; z-index: 1;">&times;</button>
+            }
+            
+            <!-- Modal Body -->
+            <div class="modal-body" style="padding: 24px; max-height: calc(80vh - 140px); overflow-y: auto;">
                 <A2UIRenderer SurfaceId="@SurfaceId" ComponentId="@ContentChildId" DataContextPath="@Component.DataContextPath" />
             </div>
         </div>
-    }
-</div>
+    </div>
+}
 
 @code {
-    private string? EntryPointChildId;
     private string? ContentChildId;
+    private string? ResolvedTitle;
+    private string? IsOpenDataPath;
     private bool IsOpen = false;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        
+        // Subscribe to data update events
+        EventDispatcher.DataUpdateDispatched += OnDataUpdate;
+    }
 
     protected override void OnParametersSet()
     {
         base.OnParametersSet();
 
-        EntryPointChildId = GetStringProperty("entryPointChild");
-        ContentChildId = GetStringProperty("contentChild");
+        Console.WriteLine($"[A2UIModal] OnParametersSet - SurfaceId: {SurfaceId}, ComponentId: {Component.Id}");
+
+        // Get content child ID
+        ContentChildId = GetStringProperty("content");
+        Console.WriteLine($"[A2UIModal] ContentChildId: {ContentChildId}");
+
+        // Get title
+        var titleValue = GetDictionaryProperty("title");
+        if (titleValue != null)
+        {
+            ResolvedTitle = BindingResolver.ResolveString(titleValue, SurfaceId, Component.DataContextPath);
+        }
+
+        // Get isOpen from data binding
+        var isOpenData = GetDictionaryProperty("isOpen");
+        if (isOpenData != null)
+        {
+            if (isOpenData.TryGetValue("path", out var pathObj))
+            {
+                IsOpenDataPath = pathObj?.ToString();
+            }
+
+            var resolvedValue = BindingResolver.ResolveValue(isOpenData, SurfaceId, Component.DataContextPath);
+            IsOpen = resolvedValue is bool boolValue && boolValue;
+            Console.WriteLine($"[A2UIModal] IsOpen: {IsOpen}, Path: {IsOpenDataPath}");
+        }
     }
 
-    private void OpenModal()
+    private void OnDataUpdate(object? sender, DataUpdateEventArgs e)
     {
-        IsOpen = true;
-        StateHasChanged();
+        Console.WriteLine($"[A2UIModal] OnDataUpdate called: SurfaceId={e.Update.SurfaceId}, Path={e.Update.Path}, Value={e.Update.Value}");
+        Console.WriteLine($"[A2UIModal] My SurfaceId={SurfaceId}, My Path={IsOpenDataPath}");
+
+        // Important: DataUpdateDispatched is global; ignore updates from other surfaces.
+        if (!string.Equals(e.Update.SurfaceId, SurfaceId, StringComparison.Ordinal))
+        {
+            Console.WriteLine($"[A2UIModal] Ignoring update from other surface: {e.Update.SurfaceId}");
+            return;
+        }
+        
+        // Check if this update affects our modal open state
+        if (!string.IsNullOrEmpty(IsOpenDataPath) && e.Update.Path == IsOpenDataPath)
+        {
+            Console.WriteLine($"[A2UIModal] Path matched! Updating IsOpen from {IsOpen} to {e.Update.Value}");
+            IsOpen = e.Update.Value is bool boolValue && boolValue;
+            Console.WriteLine($"[A2UIModal] IsOpen is now: {IsOpen}, calling StateHasChanged");
+            StateHasChanged();
+        }
+        else
+        {
+            Console.WriteLine($"[A2UIModal] Path did not match or IsOpenDataPath is empty");
+        }
+    }
+
+    public void Dispose()
+    {
+        EventDispatcher.DataUpdateDispatched -= OnDataUpdate;
     }
 
     private void CloseModal()
     {
         IsOpen = false;
+
+        // Update data binding
+        if (!string.IsNullOrEmpty(IsOpenDataPath))
+        {
+            var dataUpdate = EventDispatcher.CreateDataUpdate(
+                SurfaceId,
+                Component.Id,
+                IsOpenDataPath,
+                false
+            );
+            EventDispatcher.DispatchDataUpdate(dataUpdate);
+        }
+
+        // Dispatch close action if specified
+        var closeActionData = GetDictionaryProperty("closeAction");
+        if (closeActionData != null && closeActionData.TryGetValue("name", out var actionNameObj) && actionNameObj is string actionName)
+        {
+            var action = EventDispatcher.CreateUserAction(
+                actionName,
+                SurfaceId,
+                Component.Id,
+                new Dictionary<string, object>()
+            );
+            EventDispatcher.DispatchUserAction(action);
+        }
+
         StateHasChanged();
     }
 

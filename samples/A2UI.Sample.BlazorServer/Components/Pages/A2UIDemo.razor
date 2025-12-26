@@ -172,8 +172,8 @@
     {
         _lastAction = $"{e.Action.Name} (来自 {e.Action.SourceComponentId})";
         
-        // Send action to agent
-        var actionQuery = $"用户点击了: {e.Action.Name}";
+        // Send action name directly to agent for keyword matching
+        var actionQuery = e.Action.Name;
         if (e.Action.Context != null && e.Action.Context.Count > 0)
         {
             var contextStr = string.Join(", ", e.Action.Context.Select(kv => $"{kv.Key}={kv.Value}"));
@@ -226,9 +226,6 @@
             var surfaceId = $"surface-{_surfaceCounter}";
 
             Console.WriteLine($"[Demo] Generated surfaceId: {surfaceId}");
-
-            // Clear previous surfaces to avoid component ID conflicts
-            A2AClient.ClearSurfaces();
 
             // Send to Agent and get A2UI JSON response
             var messages = await A2AClient.SendQueryAsync(query, surfaceId);

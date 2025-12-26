@@ -74,6 +74,7 @@ public class MockA2AAgent
             ["对话框"] = "modal.json",
             ["modal"] = "modal.json",
             ["dialog"] = "modal.json",
+            ["open_modal"] = "modal.json",
             ["图标"] = "icons.json",
             ["icon"] = "icons.json"
         };
@@ -95,20 +96,25 @@ public class MockA2AAgent
 
     private string ResolveScenarioFile(string query)
     {
+        _logger.LogInformation($"[MockA2AAgent] ResolveScenarioFile: query='{query}'");
+        
         foreach (var mapping in _keywordToFile)
         {
             if (query.Contains(mapping.Key, StringComparison.OrdinalIgnoreCase))
             {
+                _logger.LogInformation($"[MockA2AAgent] Matched keyword: '{mapping.Key}' -> '{mapping.Value}'");
                 return mapping.Value;
             }
         }
 
+        _logger.LogInformation($"[MockA2AAgent] No keyword matched, using default: welcome.json");
         return "welcome.json";
     }
 
     private async Task<List<ServerToClientMessage>> LoadMessagesFromJsonAsync(string fileName)
     {
         var path = Path.Combine(_environment.ContentRootPath, "MockData", fileName);
+        _logger.LogInformation($"[MockA2AAgent] LoadMessagesFromJsonAsync: fileName='{fileName}', path='{path}'");
 
         if (!File.Exists(path))
         {
@@ -121,10 +127,12 @@ public class MockA2AAgent
             return new List<ServerToClientMessage>();
         }
 
+        _logger.LogInformation($"[MockA2AAgent] Loading JSON from: {path}");
         await using var stream = File.OpenRead(path);
         var messages = await JsonSerializer.DeserializeAsync<List<ServerToClientMessage>>(stream, _jsonOptions)
             ?? new List<ServerToClientMessage>();
 
+        _logger.LogInformation($"[MockA2AAgent] Deserialized {messages.Count} messages from JSON");
         NormalizeComponents(messages);
         return messages;
     }

@@ -27,12 +27,51 @@
 
     private void HandleClick()
     {
+        Console.WriteLine($"[A2UIButton] HandleClick: ComponentId={Component.Id}");
+        
         if (ActionData == null)
+        {
+            Console.WriteLine($"[A2UIButton] ActionData is null, returning");
             return;
+        }
 
         // Extract action name
         if (!ActionData.TryGetValue("name", out var nameObj) || nameObj is not string actionName)
+        {
+            Console.WriteLine($"[A2UIButton] No action name found, returning");
             return;
+        }
+
+        Console.WriteLine($"[A2UIButton] Action name: {actionName}");
+
+        // Process updates if present (for data updates)
+        if (ActionData.TryGetValue("updates", out var updatesObj) && updatesObj is List<object> updatesList)
+        {
+            Console.WriteLine($"[A2UIButton] Found {updatesList.Count} updates to process");
+            
+            foreach (var updateItem in updatesList)
+            {
+                if (updateItem is Dictionary<string, object> updateDict &&
+                    updateDict.TryGetValue("path", out var pathObj) &&
+                    pathObj is string path &&
+                    updateDict.TryGetValue("value", out var value))
+                {
+                    Console.WriteLine($"[A2UIButton] Dispatching data update: path={path}, value={value}");
+                    
+                    var dataUpdate = EventDispatcher.CreateDataUpdate(
+                        SurfaceId,
+                        Component.Id,
+                        path,
+                        value
+                    );
+                    EventDispatcher.DispatchDataUpdate(dataUpdate);
+                }
+            }
+        }
+        else
+        {
+            Console.WriteLine($"[A2UIButton] No updates found in action");
+        }
 
         // Resolve context
         Dictionary<string, object> context = new();
@@ -43,6 +82,7 @@
         }
 
         // Create and dispatch user action
+        Console.WriteLine($"[A2UIButton] Dispatching user action: {actionName}");
         var userAction = EventDispatcher.CreateUserAction(
             actionName,
             SurfaceId,
