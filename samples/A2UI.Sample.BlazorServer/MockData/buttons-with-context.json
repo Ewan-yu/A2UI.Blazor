@@ -1,0 +1,96 @@
+[
+  {
+    "beginRendering": {
+      "surfaceId": "demo-surface",
+      "root": "root",
+      "catalogId": "org.a2ui.standard@0.8"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-surface",
+      "components": [
+        { "id": "root", "component": { "Card": { "child": "content" } } },
+        {
+          "id": "content",
+          "component": { "Column": { "children": { "explicitList": ["title", "desc", "button-row"] } } }
+        },
+        {
+          "id": "title",
+          "component": { "Text": { "text": { "literalString": "交互按钮演示（带 Context）" }, "usageHint": "h2" } }
+        },
+        {
+          "id": "desc",
+          "component": { "Text": { "text": { "literalString": "点击按钮与 Agent 交互，测试 context 传递：" } } }
+        },
+        {
+          "id": "button-row",
+          "component": { "Row": { "children": { "explicitList": ["btn1", "btn2", "btn3"] } } }
+        },
+        {
+          "id": "btn1",
+          "component": {
+            "Button": {
+              "child": "btn1-text",
+              "primary": true,
+              "action": { 
+                "name": "like_action",
+                "context": [
+                  { "key": "itemId", "value": { "literalString": "item-123" } },
+                  { "key": "userId", "value": { "literalString": "user-456" } }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "btn1-text",
+          "component": { "Text": { "text": { "literalString": "👍 喜欢 (带静态context)" } } }
+        },
+        {
+          "id": "btn2",
+          "component": {
+            "Button": { 
+              "child": "btn2-text", 
+              "action": { 
+                "name": "share_action",
+                "context": [
+                  { "key": "title", "value": { "path": "currentTitle" } },
+                  { "key": "url", "value": { "literalString": "https://example.com" } }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "btn2-text",
+          "component": { "Text": { "text": { "literalString": "🔗 分享 (带动态context)" } } }
+        },
+        {
+          "id": "btn3",
+          "component": {
+            "Button": { 
+              "child": "btn3-text", 
+              "action": { 
+                "name": "simple_action"
+              }
+            }
+          }
+        },
+        {
+          "id": "btn3-text",
+          "component": { "Text": { "text": { "literalString": "⭐ 简单按钮 (无context)" } } }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "demo-surface",
+      "contents": [
+        { "key": "currentTitle", "valueString": "测试标题来自数据模型" }
+      ]
+    }
+  }
+]
+
