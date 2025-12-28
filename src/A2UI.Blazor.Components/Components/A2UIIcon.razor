@@ -8,22 +8,103 @@
 
 @code {
     private string? ResolvedIconName;
+    private int? IconSize;
 
     protected override void OnParametersSet()
     {
         base.OnParametersSet();
 
-        // Get the icon name bound value
-        var nameValue = GetDictionaryProperty("name");
-        if (nameValue != null)
+        Console.WriteLine($"[A2UIIcon] ComponentId: {Component.Id}, Properties count: {Component.Properties.Count}");
+        foreach (var prop in Component.Properties)
         {
-            ResolvedIconName = BindingResolver.ResolveString(nameValue, SurfaceId, Component.DataContextPath);
+            Console.WriteLine($"[A2UIIcon] Property: {prop.Key} = {prop.Value} (Type: {prop.Value?.GetType().Name})");
         }
+
+        // Get the icon name - try direct property first
+        var nameString = GetStringProperty("name");
+        if (!string.IsNullOrEmpty(nameString))
+        {
+            ResolvedIconName = nameString;
+            Console.WriteLine($"[A2UIIcon] Got direct name property: {ResolvedIconName}");
+        }
+        else
+        {
+            // Try dictionary property for data binding
+            var nameValue = GetDictionaryProperty("name");
+            if (nameValue != null)
+            {
+                ResolvedIconName = BindingResolver.ResolveString(nameValue, SurfaceId, Component.DataContextPath);
+                Console.WriteLine($"[A2UIIcon] Resolved name from binding: {ResolvedIconName}");
+            }
+            else
+            {
+                Console.WriteLine($"[A2UIIcon] No name property found!");
+            }
+        }
+
+        // Get the icon size
+        if (Component.Properties.TryGetValue("size", out var sizeValue))
+        {
+            Console.WriteLine($"[A2UIIcon] Raw size value: {sizeValue} (Type: {sizeValue?.GetType().Name})");
+            
+            if (sizeValue is int intSize)
+            {
+                IconSize = intSize;
+            }
+            else if (sizeValue is System.Text.Json.JsonElement jsonSize)
+            {
+                if (jsonSize.ValueKind == System.Text.Json.JsonValueKind.Number)
+                {
+                    IconSize = jsonSize.GetInt32();
+                }
+            }
+            else if (sizeValue != null)
+            {
+                // Try to convert
+                try
+                {
+                    IconSize = Convert.ToInt32(sizeValue);
+                }
+                catch
+                {
+                    Console.WriteLine($"[A2UIIcon] Failed to convert size value");
+                }
+            }
+        }
+        
+        Console.WriteLine($"[A2UIIcon] Icon size: {IconSize}");
+        Console.WriteLine($"[A2UIIcon] Final icon character: {GetIconCharacter(ResolvedIconName)}");
     }
 
     protected override string GetCssClass()
     {
         return Theme.Components.Icon;
+    }
+
+    protected override string GetInlineStyle()
+    {
+        var styles = new List<string>();
+        
+        // Add base style
+        var baseStyle = base.GetInlineStyle();
+        if (!string.IsNullOrEmpty(baseStyle))
+        {
+            styles.Add(baseStyle);
+        }
+        
+        // Add icon size
+        if (IconSize.HasValue)
+        {
+            styles.Add($"font-size: {IconSize.Value}px");
+            styles.Add($"width: {IconSize.Value}px");
+            styles.Add($"height: {IconSize.Value}px");
+            styles.Add($"line-height: {IconSize.Value}px");
+            styles.Add("display: inline-flex");
+            styles.Add("align-items: center");
+            styles.Add("justify-content: center");
+        }
+        
+        return string.Join("; ", styles);
     }
 
     // Simple icon mapping - in a real implementation, this would use Material Icons or similar
@@ -36,21 +117,27 @@
             "arrowback" => "⬅️",
             "arrowforward" => "➡️",
             "attachfile" => "📎",
+            "bell" => "🔔",
+            "calendar" => "📅",
             "calendartoday" => "📅",
             "call" => "📞",
             "camera" => "📷",
+            "chart" => "📊",
             "check" => "✓",
             "close" => "✕",
             "delete" => "🗑️",
             "edit" => "✏️",
             "email" => "✉️",
             "favorite" => "❤️",
+            "heart" => "❤️",
             "home" => "🏠",
             "info" => "ℹ️",
+            "mail" => "✉️",
             "menu" => "☰",
             "search" => "🔍",
             "settings" => "⚙️",
             "star" => "⭐",
+            "user" => "👤",
             "warning" => "⚠️",
             _ => "◉"
         };
